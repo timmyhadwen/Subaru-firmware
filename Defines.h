@@ -1,6 +1,8 @@
 /* Ignores the dead man switch variable from the jetson */
 #define IGNORE_DEAD_MAN 0
 
+//#define GPS_PRINTOUT 0
+
 /* Defines for the gear positions */
 #define GEAR_P_POS 900
 #define GEAR_R_POS 800
@@ -13,5 +15,25 @@
 #define BRAKE_ON_POS 100
 #define BRAKE_OFF_POS 0
 
-#define ACCELERATOR_ZERO 0
-#define ACCELERATOR_MAX 10
+#define ACCELERATOR_ZERO 50
+#define ACCELERATOR_MAX 57
+
+#define GEAR_OFFSET 10
+
+enum State {
+  HALT,
+  STOP,
+  IGNITION,
+  START,
+  RUNNING,
+  DRIVING
+};
+
+enum Gear{
+  PARK,
+  REVERSE,
+  DRIVE,
+  NEUTRAL,
+  UKNOWN
+};
+

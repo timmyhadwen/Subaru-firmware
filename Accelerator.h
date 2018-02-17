@@ -12,13 +12,15 @@ class Accelerator {
     Servo* servo;
 };
 
+Accelerator::Accelerator() {
+}
+
 Accelerator::Accelerator(Servo* servo) {
   this->servo = servo;
-  this->servo->write(0);
 }
 
 void Accelerator::setTarget(int x) {
-  x *= ACCELERATOR_MULTIPLIER;
+//  x *= ACCELERATOR_MULTIPLIER;
   if (x > this->max)
     x = this->max;
   if (x < this->min)

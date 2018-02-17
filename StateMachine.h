@@ -9,29 +9,13 @@
 
 #include <Servo.h>
 #include "Defines.h"
+#include <Math.h>
 
 struct Actuators {
   Accelerator servo_acc; // Accelerator
   Motor gear_lever;
   Motor brake_lever;
 };
-
-enum State {
-  HALT,
-  STOP,
-  IGNITION,
-  START,
-  RUNNING,
-  DRIVING
-};
-
-enum Gear{
-  PARK,
-  REVERSE,
-  DRIVE
-};
-
-
 
 class StateMachine{
   public:
@@ -45,8 +29,11 @@ class StateMachine{
     void achieveCurrentState();
     void changeState();
     void emergencyStop();
+    Gear getGear();
 
-  State getState(){return state_;}
+  State getState(){
+    return state_;
+  }
 
 
   private:
@@ -58,7 +45,7 @@ class StateMachine{
     Actuators *actuators_;
 
     // We dont want to acces the states of the StateMachine
-    //  void setState(State state){state_=state};
+    //  void setState(State state){state_=state}
     // Checks if all defined coditoin in states
     bool checkState();
     bool checkStop();
@@ -85,21 +72,24 @@ StateMachine::StateMachine(Actuators *actuators) {
 void StateMachine::setIgnitionON(){
   ignitionOn_ = 1;
   digitalWrite(ENGINE_ON_PIN, 1);
-};
+}
 
 void StateMachine::setIgnitionOFF(){
-  ignitionOn_ =0;
+  ignitionOn_ = 0;
   digitalWrite(ENGINE_ON_PIN, 0);
-};
+}
 
 void StateMachine::setIgnitionCrankON(){
+  Serial.println("setIgnitionCrankON");
   engineCrankOn_ = 1;
   digitalWrite(ENGINE_CRANK_PIN, 1);
-};
+}
+
 void StateMachine::setIgnitionCrankOFF(){
-  engineCrankOn_ =0;
+  Serial.println("setIgnitionCrankOFF");
+  engineCrankOn_ = 0;
   digitalWrite(ENGINE_CRANK_PIN, 0);
-};
+}
 
 
 // Intialisation of the StateMachine
@@ -109,32 +99,41 @@ void StateMachine::initialize(){
   setIgnitionCrankOFF();
   //ToDO:: Check MOTORS  for current state
   update();
-
 }
 
 // Updates the state of the motors
 void StateMachine::update(){
 //ToDo: Get the actuator values
-    digitalWrite(ENGINE_ON_PIN, 0);
-//  acc_ = actuator
- gear_ = actuators_->gear_lever.getGear();
+ gear_ = getGear();
  brake_ = actuators_->brake_lever.getPosition();
 }
 
+Gear StateMachine::getGear() {
+  int gear_pos = actuators_->gear_lever.getPosition();
+  if(abs(GEAR_P_POS - gear_pos) <= GEAR_OFFSET )
+    return PARK;
+  if(abs(GEAR_R_POS - gear_pos) <= GEAR_OFFSET )
+    return REVERSE;
+  if (abs(GEAR_N_POS - gear_pos) <= GEAR_OFFSET )
+    return NEUTRAL;
+  if(abs(GEAR_D_POS - gear_pos) <= GEAR_OFFSET )
+    return DRIVE;
+  else
+    return UKNOWN;
+
+}
 // State request from the main file,
-bool StateMachine::requestState(State requested_state){
+bool StateMachine::requestState(State requested_state) {
   update();
-  if (STOP == requested_state){
+  if (STOP == requested_state) {
     emergencyStop();
     return true;
-  }
-  else if(requested_state == state_ && checkState())
-  { // Are in the requested state and all the state condiftions have been met
+  } else if(requested_state == state_ && checkState()) { // Are in the requested state and all the state condiftions have been met
     return true;
-  }
-  else {
+  } else {
    // This is where Switch to the next state, and start acchiving the state;
     if( checkState() ){
+      Serial.println("Passed move test, changing state");
       changeState();
       return false;
     }
@@ -146,11 +145,11 @@ bool StateMachine::requestState(State requested_state){
 //  assert(false);
   }
 //  assert(false);
-};
+}
 
 void StateMachine::emergencyStop(){
   state_ = STOP;
-  actuators_->brake_lever.setTarget(1023);
+  actuators_->brake_lever.setTarget(BRAKE_ON_POS);
   setIgnitionOFF();
 }
 
@@ -165,11 +164,13 @@ void StateMachine::achieveCurrentState(){
     case STOP:
       // Only reset
     //ToDo:: Read motor values
-      actuators_->brake_lever.setTarget(1023);
+      actuators_->brake_lever.setTarget(BRAKE_ON_POS);
       digitalWrite(ENGINE_ON_PIN, 0);
       break;
 
     case HALT:
+      Serial.println("achieveCurrentState: HALT");
+      acc_ = 0;
       actuators_->servo_acc.setTarget(ACCELERATOR_ZERO);
       actuators_->gear_lever.setTarget(GEAR_P_POS);
       setIgnitionOFF();
@@ -177,23 +178,31 @@ void StateMachine::achieveCurrentState(){
       break;
 
     case IGNITION:
+      Serial.println("achieveCurrentState: IGNITION");
       setIgnitionON();
       break;
 
     case START:
-      while(t < 2.0) {
-        setIgnitionCrankON();
-        t += delta_t;
-      }
+      Serial.println("achieveCurrentState: START");
+      setIgnitionCrankON();
+      delay(1500);
       setIgnitionCrankOFF();
+//      while(t < 0.5) {
+//        setIgnitionCrankON();
+//        t += delta_t;
+//      }
+//      setIgnitionCrankOFF();
+//      delay(3000);
       break;
 
     case RUNNING:
+      Serial.println("achieveCurrentState: RUNNING");
       actuators_->gear_lever.setTarget(GEAR_D_POS);
       actuators_->brake_lever.setTarget(BRAKE_OFF_POS);
       break;
 
     case DRIVING:
+      Serial.println("achieveCurrentState: DRIVING");
       break;
   }
 }
@@ -232,14 +241,11 @@ void StateMachine::changeState(){
   }
 }
 
-
-}
-
 bool StateMachine::checkState(){
   switch(state_){
     default: //This should never happen
       emergencyStop();
-      return False;
+      return false;
     case STOP:
       return checkStop();
     case HALT:
@@ -257,58 +263,74 @@ bool StateMachine::checkState(){
 
 
 bool StateMachine::checkStop(){
-  if (100 = break_ && false == ignition_){
+  if (100 == brake_ && false == ignitionOn_){
+    Serial.println("checkStop(): true");
+    return true;
+  }else{
+    Serial.println("checkStop(): false");
+    return false;
+  }
+}
+
+bool StateMachine::checkHalt(){
+  Serial.print("Ignition: ");
+  Serial.print(ignitionOn_);
+  Serial.print(" Accelerator: ");
+  Serial.print(acc_);
+  Serial.print(" Gear: ");
+  Serial.print(gear_);
+  Serial.print(" Brake: ");
+  Serial.println(brake_);
+  if (ignitionOn_ == false && 0 == acc_ && gear_ == PARK &&
+      BRAKE_ON_POS == brake_ && false == engineCrankOn_){
+    Serial.println("checkHalt() = True");
+    return true;
+  } else {
+    Serial.println("checkHalt() = False");
+    return false;
+  }
+}
+
+bool StateMachine::checkIgnition(){
+  if (ignitionOn_ == true && 0 == acc_ && gear_ == PARK &&
+      100 == brake_ && false == engineCrankOn_){
+        Serial.println("checkIgnition() = True");
+    return true;
+  }else{
+        Serial.println("checkIgnition() = False");
+    return false;
+  }
+
+}
+bool StateMachine::checkStart(){
+  if (ignitionOn_ == true && 0 == acc_ && gear_ == PARK &&
+      100 == brake_ && false == engineCrankOn_){
+        Serial.println("checkStart() = True");
+    return true;
+  }else{
+        Serial.println("checkStart() = False");
+    return false;
+  }
+}
+bool StateMachine::checkRunning() {
+  if (ignitionOn_ == true && 0 == acc_ && gear_ == PARK &&
+      0 == brake_ && false == engineCrankOn_){
     return true;
   }else{
     return false;
   }
 }
 
-bool StateMachine::checkHalt(){
-  if (ignition_ == false && 0 == acc_ && gear_ == Park &&
-      100 = break_ && false == ignitionStart_){
-    return true;
-  }else{
-    return false;
-  }
-
-};
-
-bool StateMachine::checkIgnition(){
-  if (ignition_ == true && 0 == acc_ && gear_ == Park &&
-      100 = break_ && false == ignitionStart_){
-    return true;
-  }else{
-    return false;
-  }
-
-};
-bool StateMachine::checkStart(){
-  if (ignition_ == true && 0 == acc_ && gear_ == Park &&
-      100 = break_ && false == ignitionStart_){
-    return true;
-  }else{
-    return false;
-  }
-};
-bool StateMachine::checkRunning() {
-  if (ignition_ == true && 0 == acc_ && gear_ == Park &&
-      0 = break_ && false == ignitionStart_){
-    return true;
-  }else{
-    return false;
-  }
-};
-
 
 bool StateMachine::checkDrivinng(){
-  if (ignition_ == true && 0 == acc_ && gear_ == Park &&
-      100 = break_ && false == ignitionStart_){
+  if (ignitionOn_ == true && 0 == acc_ && gear_ == PARK &&
+      100 == brake_ && false == engineCrankOn_){
     return true;
   }else{
     return false;
   }
-};
+}
 
 #endif //SUBARU_CAR_STATE_MACHINE_HPP
+
 

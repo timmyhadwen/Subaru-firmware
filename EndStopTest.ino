@@ -18,23 +18,11 @@ JetsonCom jetsoncom;
 /* State machine */
 StateMachine statemachine;
 
-enum State {
-  HALT,
-  STOP,
-  IGNITION,
-  START,
-  RUNNING,
-  DRIVING
-};
-
-enum Gear{
-  PARK,
-  REVERSE,
-  DRIVE
-};
-
 void setup() {
   Serial.begin(115200);
+
+  pinMode(2, OUTPUT);
+  pinMode(3, OUTPUT);
 
   Serial.print("Subaru init started....");
 
@@ -52,6 +40,8 @@ void setup() {
   brake_lever.min = 0;
   brake_lever.max = 1023;
 
+  brake_lever.setTarget(BRAKE_ON_POS);
+
   Servo steering;
   steering.attach(10);
   steering_motor = Motor(&brake, A2);
@@ -59,34 +49,45 @@ void setup() {
   steering_motor.max = 1023;
 
   Servo __accl;
-  __accl.attach(9);
-  accelerator = Accelerator(&__accl);  
+  __accl.attach(9); 
+  accelerator = Accelerator(&__accl);
+
+  struct Actuators actuators = {accelerator, gear_lever, brake_lever};
+  statemachine = StateMachine(&actuators);
   
   Serial.println("Done");
 }
 
 void loop() {
+//  Serial.print("State: ");
+//  Serial.println(statemachine.getState());
   gear_lever.update();
   brake_lever.update();
   steering_motor.update();
   
   if (jetsoncom.update()) {
     // We have new coms
-    if (statemachine.getState == State.HALT && (jetsoncom.command.dead == 1 || IGNORE_DEAD_MAN)) {
+    if (jetsoncom.command.dead == 1 || IGNORE_DEAD_MAN) {
       // Dead man switch has been started, move to running
       // TODO: Start car, move to running state
+      statemachine.requestState(RUNNING);
+    } else {
+      statemachine.requestState(STOP);
     }
 
-    if (statemachine.getState == State.RUNNING) {
+    // If speed is on and we are in running state, move to driving
+    if (statemachine.getState() == RUNNING && jetsoncom.command.speed > 0) {
       // Move to driving
+      statemachine.requestState(DRIVING);
     }
 
-    if (statemachine.getState == State.DRIVING) {
+    // If we're in driving then write accelerator values
+    if (statemachine.getState() == DRIVING) {
       // Write accelerator values
-      accelerator.setTarget(map(jetsoncom.command.speed, 
+      accelerator.setTarget(map(jetsoncom.command.speed, 0, 100, 0, ACCELERATOR_MAX));
     }
 
-    if (/* current state == RUNNING || current state == DRIVING*/) {
+    if (statemachine.getState() == DRIVING || statemachine.getState() == RUNNING) {
       // Write steering angles
       steering_motor.setTarget(map(jetsoncom.command.angle, -180, 180, 0, 1023));
     }
@@ -99,8 +100,11 @@ void loop() {
     // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
     
     gps_module.parse(gps_module.lastNMEA());
+    #ifdef GPS_PRINTOUT
     Serial.println(gps_module.latitude); // this also sets the newNMEAreceived() flag to false
     Serial.println(gps_module.longitude); // this also sets the newNMEAreceived() flag to false
     Serial.println(gps_module.satellites);
+    #endif
   }
+  delay(100);
 }

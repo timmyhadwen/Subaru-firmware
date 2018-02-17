@@ -62,6 +62,7 @@ void Motor::setMin(int x){
 }
 
 int Motor::getPosition() {
-  return analogRead(this->feedback_pin);
+//  return analogRead(this->feedback_pin);
+  return this->target;
 }
 

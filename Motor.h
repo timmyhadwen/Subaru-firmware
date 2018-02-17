@@ -7,6 +7,11 @@ class Motor {
     Motor();
     void update();
     void setTarget(int x);
+    int max = 1023;
+    int min = 0;
+    void setMax(int x);
+    void setMin(int x);
+    int getPosition();
   private:
     int motor_pin;
     int feedback_pin;
@@ -29,13 +34,8 @@ Motor::Motor(Servo* servo, int feedback_pin) {
 
 void Motor::update() {
   int sensorPos = analogRead(this->feedback_pin);
-  Serial.print(sensorPos);
-
   int diff = this->target - sensorPos;
   int term = 90 + diff*PTERM;
-  Serial.print(" ");
-  Serial.print(term);
-  Serial.print("\n");
 
   // Limit to 180 and 0
   if (term > 180)
@@ -46,5 +46,22 @@ void Motor::update() {
 }
 
 void Motor::setTarget(int x) {
+  if (x > this->max)
+    x = this->max;
+  if (x < this->min)
+    x = this->min;
   this->target = x;
 }
+
+void Motor::setMax(int x) {
+  this->max = x;
+}
+
+void Motor::setMin(int x){
+  this->min = x;
+}
+
+int Motor::getPosition() {
+  return analogRead(this->feedback_pin);
+}
+

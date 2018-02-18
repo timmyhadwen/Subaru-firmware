@@ -1,5 +1,5 @@
 #include <Servo.h>
-#include <Adafruit_GPS.h>
+//#include <Adafruit_GPS.h>
 #include "Motor.h"
 #include "JetsonCom.h"
 #include "Accelerator.h"
@@ -12,7 +12,7 @@ Motor steering_motor;
 Accelerator accelerator;
 
 /* Coms modules */
-Adafruit_GPS gps_module(&Serial1);
+//Adafruit_GPS gps_module(&Serial1);
 JetsonCom jetsoncom;
 
 /* State machine */
@@ -20,19 +20,21 @@ StateMachine statemachine;
 
 void setup() {
   Serial.begin(115200);
+  Serial1.begin(9600);
 
   pinMode(2, OUTPUT);
   pinMode(3, OUTPUT);
 
   Serial.print("Subaru init started....");
 
-  gps_module.begin(9600);
+//  gps_module.begin(9600);
   
   Servo gear;
   gear.attach(12);
   gear_lever = Motor(&gear, A0);
   gear_lever.min = 0;
   gear_lever.max = 1023;
+  gear_lever.PTERM = 1.0;
 
   Servo brake;
   brake.attach(11);
@@ -40,30 +42,80 @@ void setup() {
   brake_lever.min = 0;
   brake_lever.max = 1023;
 
-  brake_lever.setTarget(BRAKE_ON_POS);
-
   Servo steering;
   steering.attach(10);
-  steering_motor = Motor(&brake, A2);
+  steering_motor = Motor(&steering, A2);
   steering_motor.min = 0;
   steering_motor.max = 1023;
+  steering_motor.invert = true;
+  steering_motor.PTERM = 0.4;
 
   Servo __accl;
   __accl.attach(9); 
   accelerator = Accelerator(&__accl);
+  __accl.write(ACCELERATOR_ZERO);
 
   struct Actuators actuators = {accelerator, gear_lever, brake_lever};
   statemachine = StateMachine(&actuators);
   
   Serial.println("Done");
+
+  brake_lever.setTarget(BRAKE_ON_POS);
+  gear_lever.setTarget(GEAR_P_POS);
+
+  // 500 midpoint
+  // 250 left
+  // 750 right
+  
+  steering_motor.setTarget(500);
+
+  gear_lever.setTarget(GEAR_P_POS);
+
+//  while(true) {
+//    gear_lever.update();
+//    delay(1);
+//  }
+
+//  while(true) {
+//    accelerator.setTarget(ACCELERATOR_ZERO);
+//    delay(1000);
+//    accelerator.setTarget(ACCELERATOR_MAX);
+//    delay(1000);
+//  }
+//
+//  int i = 0;
+//  while (true) { 
+//    i++;
+//    Serial.println(steering_motor.getPosition());
+//    steering_motor.update();
+//
+////    if (i > 200) { 
+////      gear_lever.setTarget(GEAR_P_POS);
+////    }
+////
+////    if (i > 400) { 
+////      gear_lever.setTarget(GEAR_R_POS);
+////    }
+////
+////    if (i > 600) { 
+////      gear_lever.setTarget(GEAR_N_POS);
+////    }
+////
+////    if (i > 800) { 
+////      gear_lever.setTarget(GEAR_D_POS);
+////    }
+//    delay(10);
+//  }
 }
 
-void loop() {
-//  Serial.print("State: ");
-//  Serial.println(statemachine.getState());
+void loop() {  
   gear_lever.update();
   brake_lever.update();
   steering_motor.update();
+
+  if (Serial1.available()) {
+    Serial.write(Serial1.read());
+  }
   
   if (jetsoncom.update()) {
     // We have new coms
@@ -71,7 +123,9 @@ void loop() {
       // Dead man switch has been started, move to running
       // TODO: Start car, move to running state
       statemachine.requestState(RUNNING);
-    } else {
+    } else if (statemachine.getState() == STOP) {
+      statemachine.requestState(HALT);
+    } else if (statemachine.getState() != HALT) {
       statemachine.requestState(STOP);
     }
 
@@ -82,29 +136,16 @@ void loop() {
     }
 
     // If we're in driving then write accelerator values
-    if (statemachine.getState() == DRIVING) {
+    if (statemachine.getState() == DRIVING || statemachine.getState() == HALT) {
       // Write accelerator values
-      accelerator.setTarget(map(jetsoncom.command.speed, 0, 100, 0, ACCELERATOR_MAX));
+      accelerator.setTarget(mapfloat((float)jetsoncom.command.speed, 0, 100, ACCELERATOR_ZERO, ACCELERATOR_MAX));
     }
 
-    if (statemachine.getState() == DRIVING || statemachine.getState() == RUNNING) {
+    if (statemachine.getState() == DRIVING || statemachine.getState() == RUNNING || statemachine.getState() == HALT ) {
       // Write steering angles
-      steering_motor.setTarget(map(jetsoncom.command.angle, -180, 180, 0, 1023));
+//      steering_motor.setTarget(mapfloat((float)jetsoncom.command.angle, -90, 90, 250, 750));
     }
   }
-
-  char c = gps_module.read();
-  if (gps_module.newNMEAreceived()) {
-    // a tricky thing here is if we print the NMEA sentence, or data
-    // we end up not listening and catching other sentences!
-    // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
-    
-    gps_module.parse(gps_module.lastNMEA());
-    #ifdef GPS_PRINTOUT
-    Serial.println(gps_module.latitude); // this also sets the newNMEAreceived() flag to false
-    Serial.println(gps_module.longitude); // this also sets the newNMEAreceived() flag to false
-    Serial.println(gps_module.satellites);
-    #endif
-  }
+  
   delay(100);
 }

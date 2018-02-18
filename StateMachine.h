@@ -187,6 +187,7 @@ void StateMachine::achieveCurrentState(){
       setIgnitionCrankON();
       delay(1500);
       setIgnitionCrankOFF();
+      delay(1000);
 //      while(t < 0.5) {
 //        setIgnitionCrankON();
 //        t += delta_t;
@@ -263,7 +264,7 @@ bool StateMachine::checkState(){
 
 
 bool StateMachine::checkStop(){
-  if (100 == brake_ && false == ignitionOn_){
+  if (brake_ > BRAKE_ON_POS && false == ignitionOn_) {
     Serial.println("checkStop(): true");
     return true;
   }else{
@@ -282,7 +283,7 @@ bool StateMachine::checkHalt(){
   Serial.print(" Brake: ");
   Serial.println(brake_);
   if (ignitionOn_ == false && 0 == acc_ && gear_ == PARK &&
-      BRAKE_ON_POS == brake_ && false == engineCrankOn_){
+      brake_ > BRAKE_ON_POS && false == engineCrankOn_) {
     Serial.println("checkHalt() = True");
     return true;
   } else {
@@ -293,7 +294,7 @@ bool StateMachine::checkHalt(){
 
 bool StateMachine::checkIgnition(){
   if (ignitionOn_ == true && 0 == acc_ && gear_ == PARK &&
-      100 == brake_ && false == engineCrankOn_){
+      brake_ > BRAKE_ON_POS && false == engineCrankOn_){
         Serial.println("checkIgnition() = True");
     return true;
   }else{
@@ -303,21 +304,22 @@ bool StateMachine::checkIgnition(){
 
 }
 bool StateMachine::checkStart(){
-  if (ignitionOn_ == true && 0 == acc_ && gear_ == PARK &&
-      100 == brake_ && false == engineCrankOn_){
-        Serial.println("checkStart() = True");
-    return true;
-  }else{
-        Serial.println("checkStart() = False");
-    return false;
-  }
+//  if (ignitionOn_ == true && 0 == acc_ && gear_ == PARK && false == engineCrankOn_){
+//        Serial.println("checkStart() = True");
+//    return true;
+//  }else{
+//        Serial.println("checkStart() = False");
+//    return false;
+  return true;
+//  }
 }
 bool StateMachine::checkRunning() {
-  if (ignitionOn_ == true && 0 == acc_ && gear_ == PARK &&
-      0 == brake_ && false == engineCrankOn_){
+  if (ignitionOn_ == true && 0 == acc_ && gear_ == PARK  && false == engineCrankOn_){
+    Serial.println("checkRunning() = True");
     return true;
   }else{
     return false;
+    Serial.println("checkRunning() = False");
   }
 }
 

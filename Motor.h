@@ -1,6 +1,3 @@
-#define PTERM 2
-#define ITERM 0
-
 class Motor {
   public:
     Motor(Servo* servo, int feedback_pin);
@@ -12,6 +9,9 @@ class Motor {
     void setMax(int x);
     void setMin(int x);
     int getPosition();
+    bool debug = false;
+    double PTERM = 0.5;
+    bool invert = false;
   private:
     int motor_pin;
     int feedback_pin;
@@ -28,7 +28,6 @@ Motor::Motor(Servo* servo, int feedback_pin) {
   this->motor_pin = motor_pin;
   this->feedback_pin = feedback_pin;
   this->servo = servo;
-  this->servo->write(90);
   pinMode(this->feedback_pin, INPUT);
 }
 
@@ -42,7 +41,28 @@ void Motor::update() {
     term = 180;
   if (term < 0)
     term = 0;
-  this->servo->write(term);
+
+  if (this->debug) {
+    Serial.print("Error: ");
+    Serial.println(diff);
+    Serial.print("Setting motor to: ");
+    Serial.println(term);
+  }
+
+  if (sensorPos < this->min) {
+    term = 100;
+  }
+
+  if (sensorPos > this->max) {
+    term = 80;
+  }
+
+  // Finally write out to the stepper motor
+  if (this->invert) {
+    this->servo->write(180 - term);
+  } else {
+    this->servo->write(term);
+  }
 }
 
 void Motor::setTarget(int x) {
@@ -51,6 +71,8 @@ void Motor::setTarget(int x) {
   if (x < this->min)
     x = this->min;
   this->target = x;
+//  Serial.print("Writing to motor ");
+//  Serial.println(this->target = x);
 }
 
 void Motor::setMax(int x) {
@@ -62,7 +84,11 @@ void Motor::setMin(int x){
 }
 
 int Motor::getPosition() {
-//  return analogRead(this->feedback_pin);
-  return this->target;
+  int a = analogRead(this->feedback_pin);
+  if (this->debug) {
+    Serial.print("motorPosition: ");
+    Serial.println(a);
+  }
+  return a;
 }
 

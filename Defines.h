@@ -4,21 +4,21 @@
 //#define GPS_PRINTOUT 0
 
 /* Defines for the gear positions */
-#define GEAR_P_POS 900
-#define GEAR_R_POS 800
-#define GEAR_N_POS 700
-#define GEAR_D_POS 600
-#define GEAR_1_POS 500
-#define GEAR_2_POS 400
+#define GEAR_P_POS 170
+#define GEAR_R_POS 300
+#define GEAR_N_POS 350
+#define GEAR_D_POS 425
+//#define GEAR_1_POS 600
+//#define GEAR_2_POS 700
 
 /* Defines for the brake positions */
-#define BRAKE_ON_POS 100
-#define BRAKE_OFF_POS 0
+#define BRAKE_ON_POS 300
+#define BRAKE_OFF_POS 600
 
-#define ACCELERATOR_ZERO 50
-#define ACCELERATOR_MAX 57
+#define ACCELERATOR_ZERO 70
+#define ACCELERATOR_MAX 85
 
-#define GEAR_OFFSET 10
+#define GEAR_OFFSET 100
 
 enum State {
   HALT,
@@ -37,3 +37,8 @@ enum Gear{
   UKNOWN
 };
 
+
+float mapfloat(long x, long in_min, long in_max, long out_min, long out_max)
+{
+ return (float)(x - in_min) * (out_max - out_min) / (float)(in_max - in_min) + out_min;
+}
